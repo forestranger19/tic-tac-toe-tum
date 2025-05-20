@@ -11,14 +11,39 @@
   <p id="status">Connecting...</p>
   <div id="board"></div>
 
+  <div id="controls">
+    <button onclick="newGame()">New Game</button>
+    <p id="score">Wins: 0 | Losses: 0</p>
+  </div>
+
+  <div id="names"></div>
+
+  <div id="rules">
+    <h3>How to Play</h3>
+    <ul>
+      <li>Take turns placing your mark (X or O)</li>
+      <li>Placing on an outer edge expands the board</li>
+      <li>First to get 4 in a row wins</li>
+      <li>Share the game link to play with a friend</li>
+    </ul>
+  </div>
+
   <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script>
     const boardEl = document.getElementById('board');
     const statusEl = document.getElementById('status');
+    const scoreEl = document.getElementById('score');
+    const namesEl = document.getElementById('names');
     let board = [['', '', ''], ['', '', ''], ['', '', '']];
     let currentPlayer = 'X';
     let isMyTurn = false;
     let winningLine = [];
+    let playerName = prompt("Enter your name:") || "You";
+    let opponentName = "Opponent";
+    let wins = parseInt(localStorage.getItem("tttWins")) || 0;
+    let losses = parseInt(localStorage.getItem("tttLosses")) || 0;
+
+    scoreEl.textContent = `Wins: ${wins} | Losses: ${losses}`;
 
     function renderBoard() {
       boardEl.innerHTML = '';
@@ -39,11 +64,14 @@
               const win = checkWin(currentPlayer);
               if (win) {
                 winningLine = win;
-                statusEl.textContent = `Player ${currentPlayer} wins!`;
+                statusEl.textContent = `${playerName} wins!`;
+                wins++;
+                localStorage.setItem("tttWins", wins);
+                scoreEl.textContent = `Wins: ${wins} | Losses: ${losses}`;
               } else {
                 currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
                 isMyTurn = false;
-                statusEl.textContent = `Waiting for opponent...`;
+                statusEl.textContent = `Waiting for ${opponentName}...`;
               }
               sendGameState();
               renderBoard();
@@ -93,40 +121,64 @@
 
     peer.on("open", (id) => {
       if (!gameId) {
-        const newGameId = id;
-        window.history.replaceState(null, null, `?game=${newGameId}`);
-        statusEl.textContent = `Waiting for opponent... (link: ?game=${newGameId})`;
-        peer.on("connection", (c) => {
-          conn = c;
-          setupConnection(true);
-        });
+        const newGameId = crypto.randomUUID();
+        window.location.search = `?game=${newGameId}`;
       } else {
-        conn = peer.connect(gameId);
-        conn.on("open", () => {
-          setupConnection(false);
-        });
+        if (id === gameId) {
+          statusEl.textContent = `Waiting for opponent...`;
+          peer.on("connection", (c) => {
+            conn = c;
+            setupConnection(true);
+          });
+        } else {
+          conn = peer.connect(gameId);
+          conn.on("open", () => {
+            setupConnection(false);
+          });
+        }
       }
     });
 
     function setupConnection(isHost) {
       isMyTurn = isHost;
       currentPlayer = isHost ? 'X' : 'O';
-      statusEl.textContent = isMyTurn ? "Your turn" : "Waiting for opponent...";
+      if (!isHost) conn.send({ name: playerName });
+      statusEl.textContent = isMyTurn ? "Your turn" : `Waiting for opponent...`;
 
       conn.on("data", (data) => {
-        board = data.board;
-        currentPlayer = data.currentPlayer;
-        winningLine = data.winningLine;
-        isMyTurn = true;
-        statusEl.textContent = "Your turn";
-        renderBoard();
+        if (data.name) {
+          opponentName = data.name;
+          namesEl.textContent = `${playerName} vs ${opponentName}`;
+        } else {
+          board = data.board;
+          currentPlayer = data.currentPlayer;
+          winningLine = data.winningLine;
+          if (data.winner && data.winner !== currentPlayer) {
+            losses++;
+            localStorage.setItem("tttLosses", losses);
+            scoreEl.textContent = `Wins: ${wins} | Losses: ${losses}`;
+            statusEl.textContent = `${opponentName} wins!`;
+          } else {
+            isMyTurn = true;
+            statusEl.textContent = "Your turn";
+          }
+          renderBoard();
+        }
       });
+
+      namesEl.textContent = `${playerName} vs ${opponentName}`;
     }
 
     function sendGameState() {
       if (conn && conn.open) {
-        conn.send({ board, currentPlayer, winningLine });
+        const winner = winningLine.length ? playerName : null;
+        conn.send({ board, currentPlayer, winningLine, winner });
       }
+    }
+
+    function newGame() {
+      const newId = crypto.randomUUID();
+      window.location.search = `?game=${newId}`;
     }
 
     renderBoard();
