@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tic Tac Toe Tum</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Tic Tac Toe Tum</h1>
+    <p id="status">Connecting...</p>
+    <div id="board"></div>
+
+    <div id="controls">
+      <button onclick="newGame()">New Game</button>
+      <p id="score">Wins: 0 | Losses: 0</p>
+    </div>
+
+    <div id="names"></div>
+
+    <div id="rules">
+      <h3>How to Play</h3>
+      <ul>
+        <li>Take turns placing your mark (X or O)</li>
+        <li>Placing on an outer edge expands the board</li>
+        <li>First to get 4 in a row wins</li>
+        <li>Share the game link to play with a friend</li>
+      </ul>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <script>
+    const boardEl = document.getElementById('board');
+    const statusEl = document.getElementById('status');
+    const scoreEl = document.getElementById('score');
+    const namesEl = document.getElementById('names');
+    let board = [['', '', ''], ['', '', ''], ['', '', '']];
+    let currentPlayer = 'X';
+    let isMyTurn = false;
+    let winningLine = [];
+    let playerName = prompt("Enter your name:") || "You";
+    let opponentName = "Opponent";
+    let wins = parseInt(localStorage.getItem("tttWins")) || 0;
+    let losses = parseInt(localStorage.getItem("tttLosses")) || 0;
+
+    scoreEl.textContent = `Wins: ${wins} | Losses: ${losses}`;
+
+    function renderBoard() {
+      boardEl.innerHTML = '';
+      boardEl.style.gridTemplateColumns = `repeat(${board[0].length}, 60px)`;
+
+      board.forEach((row, r) => {
+        row.forEach((cell, c) => {
+          const div = document.createElement('div');
+          div.className = 'cell';
+          div.textContent = cell;
+          if (winningLine.some(([wr, wc]) => wr === r && wc === c)) {
+            div.classList.add('win');
+          }
+          div.onclick = () => {
+            if (cell === '' && isMyTurn && !winningLine.length) {
+              board[r][c] = currentPlayer;
+              expandBoardIfNeeded(r, c);
+              const win = checkWin(currentPlayer);
+              if (win) {
+                winningLine = win;
+                statusEl.textContent = `${playerName} wins!`;
+                wins++;
+                localStorage.setItem("tttWins", wins);
+                scoreEl.textContent = `Wins: ${wins} | Losses: ${losses}`;
+              } else {
+                currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+                isMyTurn = false;
+                statusEl.textContent = `Waiting for ${opponentName}...`;
+              }
+              sendGameState();
+              renderBoard();
+            }
+          };
+          boardEl.appendChild(div);
+        });
+      });
+    }
+
+    function expandBoardIfNeeded(r, c) {
+      const rows = board.length;
+      const cols = board[0].length;
+
+      if (r === 0) board.unshift(Array(cols).fill(''));
+      if (r === rows - 1) board.push(Array(cols).fill(''));
+      if (c === 0) board.forEach(row => row.unshift(''));
+      if (c === cols - 1) board.forEach(row => row.push(''));
+    }
+
+    function checkWin(player) {
+      const directions = [[0,1], [1,0], [1,1], [-1,1]];
+      const inBounds = (r, c) => r >= 0 && c >= 0 && r < board.length && c < board[0].length;
+
+      for (let r = 0; r < board.length; r++) {
+        for (let c = 0; c < board[0].length; c++) {
+          if (board[r][c] !== player) continue;
+          for (let [dr, dc] of directions) {
+            let path = [[r, c]];
+            let nr = r + dr, nc = c + dc;
+            while (inBounds(nr, nc) && board[nr][nc] === player) {
+              path.push([nr, nc]);
+              if (path.length === 4) return path;
+              nr += dr;
+              nc += dc;
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    let peer = new Peer();
+    let conn;
+    const urlParams = new URLSearchParams(window.location.search);
+    const gameId = urlParams.get("game");
+
+    peer.on("open", (id) => {
+      if (!gameId) {
+        const newGameId = crypto.randomUUID();
+        window.location.search = `?game=${newGameId}`;
+      } else {
+        if (id === gameId) {
+          statusEl.textContent = `Waiting for opponent...`;
+          peer.on("connection", (c) => {
+            conn = c;
+            setupConnection(true);
+          });
+        } else {
+          conn = peer.connect(gameId);
+          conn.on("open", () => {
+            setupConnection(false);
+          });
+        }
+      }
+    });
+
+    function setupConnection(isHost) {
+      isMyTurn = isHost;
+      currentPlayer = isHost ? 'X' : 'O';
+      if (!isHost) conn.send({ name: playerName });
+      statusEl.textContent = isMyTurn ? "Your turn" : `Waiting for opponent...`;
+
+      conn.on("data", (data) => {
+        if (data.name) {
+          opponentName = data.name;
+          namesEl.textContent = `${playerName} vs ${opponentName}`;
+        } else {
+          board = data.board;
+          currentPlayer = data.currentPlayer;
+          winningLine = data.winningLine;
+          if (data.winner && data.winner !== currentPlayer) {
+            losses++;
+            localStorage.setItem("tttLosses", losses);
+            scoreEl.textContent = `Wins: ${wins} | Losses: ${losses}`;
+            statusEl.textContent = `${opponentName} wins!`;
+          } else {
+            isMyTurn = true;
+            statusEl.textContent = "Your turn";
+          }
+          renderBoard();
+        }
+      });
+
+      namesEl.textContent = `${playerName} vs ${opponentName}`;
+    }
+
+    function sendGameState() {
+      if (conn && conn.open) {
+        const winner = winningLine.length ? playerName : null;
+        conn.send({ board, currentPlayer, winningLine, winner });
+      }
+    }
+
+    function newGame() {
+      const newId = crypto.randomUUID();
+      window.location.href = `game.html?game=${newId}`;
+    }
+
+    renderBoard();
+  </script>
+</body>
+</html>
