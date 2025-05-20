@@ -121,26 +121,25 @@
     let conn;
     const urlParams = new URLSearchParams(window.location.search);
     const gameId = urlParams.get("game");
+    const isHost = !location.hash.includes("joined");
 
-    peer.on("open", (id) => {
-      if (!gameId) {
-        const newGameId = crypto.randomUUID();
-        window.location.search = `?game=${newGameId}`;
-      } else {
-        if (id === gameId) {
-          statusEl.textContent = `Waiting for opponent...`;
-          peer.on("connection", (c) => {
-            conn = c;
-            setupConnection(true);
-          });
-        } else {
-          conn = peer.connect(gameId);
-          conn.on("open", () => {
-            setupConnection(false);
-          });
-        }
-      }
-    });
+    if (isHost) {
+      peer.on("open", (id) => {
+        window.history.replaceState(null, "", `${location.pathname}${location.search}#host`);
+        statusEl.textContent = `Waiting for opponent...`;
+        peer.on("connection", (c) => {
+          conn = c;
+          setupConnection(true);
+        });
+      });
+    } else {
+      peer.on("open", () => {
+        conn = peer.connect(gameId);
+        conn.on("open", () => {
+          setupConnection(false);
+        });
+      });
+    }
 
     function setupConnection(isHost) {
       isMyTurn = isHost;
@@ -181,7 +180,7 @@
 
     function newGame() {
       const newId = crypto.randomUUID();
-      window.location.href = `game.html?game=${newId}`;
+      window.location.href = `game.html?game=${newId}#joined`;
     }
 
     renderBoard();
