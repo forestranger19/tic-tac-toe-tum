@@ -117,14 +117,14 @@
       return null;
     }
 
-    let peer = new Peer();
-    let conn;
     const urlParams = new URLSearchParams(window.location.search);
     const gameId = urlParams.get("game");
     const isHost = !location.hash.includes("joined");
+    let peer = isHost ? new Peer(gameId) : new Peer();
+    let conn;
 
     if (isHost) {
-      peer.on("open", (id) => {
+      peer.on("open", () => {
         window.history.replaceState(null, "", `${location.pathname}${location.search}#host`);
         statusEl.textContent = `Waiting for opponent...`;
         peer.on("connection", (c) => {
