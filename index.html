@@ -25,6 +25,9 @@
       font-size: 0.9rem;
       color: #10b981;
     }
+    #goButton {
+      margin-top: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -39,19 +42,20 @@
       <br>
       <button onclick="copyGameLink()">Copy Link</button>
       <div id="copyStatus"></div>
+      <button id="goButton" onclick="goToGame()">Go to Game</button>
     </div>
   </div>
 
   <script>
+    let newGameId = "";
+
     function startGame() {
-      const newGameId = crypto.randomUUID();
+      newGameId = crypto.randomUUID();
       const joinLink = `${window.location.origin}/game.html?game=${newGameId}#joined`;
 
       document.getElementById("gameLink").value = joinLink;
       document.getElementById("shareBox").style.display = "block";
       document.getElementById("copyStatus").textContent = "";
-
-      window.location.href = `game.html?game=${newGameId}`;
     }
 
     function copyGameLink() {
@@ -61,6 +65,12 @@
       navigator.clipboard.writeText(linkField.value).then(() => {
         document.getElementById("copyStatus").textContent = "Link copied to clipboard!";
       });
+    }
+
+    function goToGame() {
+      if (newGameId) {
+        window.location.href = `game.html?game=${newGameId}`;
+      }
     }
   </script>
 </body>
