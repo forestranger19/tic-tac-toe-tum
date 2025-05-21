@@ -119,7 +119,7 @@
 
     const urlParams = new URLSearchParams(window.location.search);
     const gameId = urlParams.get("game");
-    const isHost = !window.location.href.includes("#joined");
+    const isHost = location.hash !== "#joined";
     let peer = isHost ? new Peer(gameId) : new Peer();
     let conn;
 
