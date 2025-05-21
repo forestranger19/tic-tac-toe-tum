@@ -6,20 +6,62 @@
   <title>Tic Tac Toe Tum</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
+  <style>
+    #shareBox {
+      margin-top: 1.5rem;
+      display: none;
+    }
+    #gameLink {
+      width: 80%;
+      max-width: 500px;
+      padding: 10px;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      margin-top: 0.5rem;
+    }
+    #copyStatus {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #10b981;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>Tic Tac Toe Tum</h1>
     <p>Challenge a friend to an ever-growing twist on a classic game.</p>
     <button onclick="startGame()">Start New Game</button>
+
+    <div id="shareBox">
+      <p>Send this link to a friend to join your game:</p>
+      <input type="text" id="gameLink" readonly>
+      <br>
+      <button onclick="copyGameLink()">Copy Link</button>
+      <div id="copyStatus"></div>
+    </div>
   </div>
 
   <script>
     function startGame() {
       const newGameId = crypto.randomUUID();
+      const joinLink = `${window.location.origin}/game.html?game=${newGameId}#joined`;
+
+      document.getElementById("gameLink").value = joinLink;
+      document.getElementById("shareBox").style.display = "block";
+      document.getElementById("copyStatus").textContent = "";
+
       window.location.href = `game.html?game=${newGameId}`;
+    }
+
+    function copyGameLink() {
+      const linkField = document.getElementById("gameLink");
+      linkField.select();
+      linkField.setSelectionRange(0, 99999); // mobile
+      navigator.clipboard.writeText(linkField.value).then(() => {
+        document.getElementById("copyStatus").textContent = "Link copied to clipboard!";
+      });
     }
   </script>
 </body>
 </html>
-
